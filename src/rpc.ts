@@ -5,6 +5,11 @@ export interface GetBlockParams {
   zcashRpcUrl: string;
 }
 
+export interface GetTxParams {
+  txHash: string;
+  zcashRpcUrl: string;
+}
+
 export interface RpcResponse<T = unknown> {
   jsonrpc: string;
   id: string;
@@ -15,13 +20,189 @@ export interface RpcResponse<T = unknown> {
   };
 }
 
+export interface ValuePool {
+  id: string;
+  chainValue: number;
+  chainValueZat: number;
+  monitored: boolean;
+}
+
+export interface ChainSupply {
+  chainValue: number;
+  chainValueZat: number;
+  monitored: boolean;
+}
+
+export interface TreeInfo {
+  size: number;
+}
+
+export interface Trees {
+  sapling: TreeInfo;
+  orchard: TreeInfo;
+}
+
+export interface BlockData {
+  hash: string;
+  confirmations: number;
+  size: number;
+  height: number;
+  version: number;
+  merkleroot: string;
+  blockcommitments: string;
+  finalsaplingroot: string;
+  finalorchardroot: string;
+  tx: string[];
+  time: number;
+  nonce: string;
+  solution: string;
+  bits: string;
+  difficulty: number;
+  chainSupply: ChainSupply;
+  valuePools: ValuePool[];
+  trees: Trees;
+  previousblockhash: string;
+  nextblockhash: string;
+}
+
+export type GetBlockDataResponse = RpcResponse<BlockData>;
+
+// ============================================================================
+// Transaction Types
+// ============================================================================
+
+/**
+ * Script public key information
+ */
+export interface ScriptPubKey {
+  asm: string;
+  hex: string;
+  reqSigs?: number;
+  type: string;
+  addresses?: string[];
+}
+
+/**
+ * Script signature information
+ */
+export interface ScriptSig {
+  asm: string;
+  hex: string;
+}
+
+/**
+ * Transaction output
+ */
+export interface Vout {
+  value: number;
+  valueZat: number;
+  n: number;
+  scriptPubKey: ScriptPubKey;
+}
+
+/**
+ * Orchard shielded pool information
+ */
+export interface OrchardInfo {
+  actions: unknown[];
+  valueBalance: number;
+  valueBalanceZat: number;
+}
+
+/**
+ * Coinbase transaction input (block reward)
+ */
+export interface VinCoinbase {
+  coinbase: string;
+  sequence: number;
+}
+
+/**
+ * Regular transaction input
+ */
+export interface VinRegular {
+  txid: string;
+  vout: number;
+  scriptSig: ScriptSig;
+  sequence: number;
+}
+
+/**
+ * Transaction input - can be either coinbase or regular
+ */
+export type Vin = VinCoinbase | VinRegular;
+
+/**
+ * Base transaction data fields common to all transaction types
+ */
+interface BaseTransactionData {
+  in_active_chain?: boolean;
+  hex: string;
+  height: number;
+  confirmations: number;
+  vout: Vout[];
+  vShieldedSpend: unknown[];
+  vShieldedOutput: unknown[];
+  vjoinsplit: unknown[];
+  orchard: OrchardInfo;
+  valueBalance: number;
+  valueBalanceZat: number;
+  size: number;
+  time: number;
+  txid: string;
+  overwintered: boolean;
+  version: number;
+  versiongroupid?: string;
+  locktime: number;
+  blockhash: string;
+  blocktime: number;
+}
+
+/**
+ * Coinbase transaction data (block reward transaction)
+ */
+export interface CoinbaseTransactionData extends BaseTransactionData {
+  vin: VinCoinbase[];
+  authdigest: string;
+  expiryheight: number;
+}
+
+/**
+ * Non-coinbase transaction data (regular transaction)
+ */
+export interface NonCoinbaseTransactionData extends BaseTransactionData {
+  vin: VinRegular[];
+  authdigest?: string;
+  expiryheight?: number;
+}
+
+/**
+ * Transaction data - can be either coinbase or non-coinbase
+ */
+export type TransactionData = CoinbaseTransactionData | NonCoinbaseTransactionData;
+
+/**
+ * RPC response type for getTxData
+ */
+export type GetTxDataResponse = RpcResponse<TransactionData>;
+
+/**
+ * Type guard to check if a transaction is a coinbase transaction
+ * @param tx - Transaction data to check
+ * @returns true if the transaction is a coinbase transaction
+ */
+export function isCoinbaseTransaction(tx: TransactionData): tx is CoinbaseTransactionData {
+  const firstVin = tx.vin[0];
+  return tx.vin.length > 0 && firstVin !== undefined && 'coinbase' in firstVin;
+}
+
 /**
  * Fetches block data from Zcash RPC endpoint
  * @param params - Object containing blockNumber and zcashRpcUrl
  * @returns The RPC response containing block data
  * @throws {Error} If the RPC request fails
  */
-export async function getBlockData(params: GetBlockParams): Promise<RpcResponse> {
+export async function getBlockData(params: GetBlockParams): Promise<GetBlockDataResponse> {
   const { blockNumber, zcashRpcUrl } = params;
 
   const requestBody = {
@@ -32,7 +213,7 @@ export async function getBlockData(params: GetBlockParams): Promise<RpcResponse>
   };
 
   try {
-    const response = await axios.post<RpcResponse>(zcashRpcUrl, requestBody, {
+    const response = await axios.post<GetBlockDataResponse>(zcashRpcUrl, requestBody, {
       headers: {
         'content-type': 'text/plain;',
       },
@@ -43,6 +224,40 @@ export async function getBlockData(params: GetBlockParams): Promise<RpcResponse>
     if (axios.isAxiosError(error)) {
       throw new Error(
         `Failed to fetch block data: ${error.message}${error.response ? ` (Status: ${error.response.status})` : ''}`
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * Fetches transaction data from Zcash RPC endpoint
+ * @param params - Object containing txHash and zcashRpcUrl
+ * @returns The RPC response containing transaction data
+ * @throws {Error} If the RPC request fails
+ */
+export async function getTxData(params: GetTxParams): Promise<GetTxDataResponse> {
+  const { txHash, zcashRpcUrl } = params;
+
+  const requestBody = {
+    jsonrpc: '1.0',
+    id: 'curltest',
+    method: 'getrawtransaction',
+    params: [txHash, 1],
+  };
+
+  try {
+    const response = await axios.post<GetTxDataResponse>(zcashRpcUrl, requestBody, {
+      headers: {
+        'content-type': 'text/plain;',
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        `Failed to fetch transaction data: ${error.message}${error.response ? ` (Status: ${error.response.status})` : ''}`
       );
     }
     throw error;

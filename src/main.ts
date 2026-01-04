@@ -1,5 +1,7 @@
 import { validateAndGetEnvVars } from './env';
-import { getBlockData } from './rpc';
+import { getBlockData, getTxData, isCoinbaseTransaction } from './rpc';
+
+import { writeFileSync } from 'node:fs';
 
 const main = async () => {
   // Validate and get environment variables
@@ -10,7 +12,26 @@ const main = async () => {
     zcashRpcUrl: ZCASH_RPC_URL,
   });
 
-  console.log(result);
+  const results = result.result?.tx.map(async (tx) => {
+    console.log('printing info for: ', tx);
+
+    const result = await getTxData({
+      txHash: tx,
+      zcashRpcUrl: ZCASH_RPC_URL,
+    });
+
+    writeFileSync(`saving-${Math.random()}.json`, JSON.stringify(result));
+
+    console.log('results: ', result);
+
+    if (result.result) {
+      console.log('isCoinbaseTransaction:', isCoinbaseTransaction(result.result));
+    }
+  });
+
+  if (results) {
+    await Promise.all(results);
+  }
 };
 
 main();
