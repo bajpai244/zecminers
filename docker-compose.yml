@@ -22,5 +22,55 @@ services:
         soft: 262144
         hard: 262144
 
+  sync:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zcash-sync
+    command: ['bun', 'run', 'src/sync.ts']
+    environment:
+      - ZCASH_RPC_URL=${ZCASH_RPC_URL}
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=8123
+      - CLICKHOUSE_DATABASE=zcash
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=zcash123
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zcash-server
+    command: ['bun', 'run', 'src/server.ts']
+    ports:
+      - '3000:3000'
+    environment:
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=8123
+      - CLICKHOUSE_DATABASE=zcash
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=zcash123
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./web-app
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:3000
+    container_name: zcash-frontend
+    ports:
+      - '5173:80'
+    depends_on:
+      - server
+    restart: unless-stopped
+
 volumes:
   clickhouse_data:
