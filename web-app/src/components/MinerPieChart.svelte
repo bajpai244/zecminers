@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { MinerStats } from '../lib/types';
+  import { getMinerName } from '../lib/known-miners';
 
   interface Props {
     miners: MinerStats[];
@@ -32,8 +33,9 @@
 
     miners.forEach((miner, index) => {
       if (miner.percentage >= threshold && processed.length < colors.length) {
+        const poolName = getMinerName(miner.miner);
         processed.push({
-          label: truncateAddress(miner.miner),
+          label: poolName || truncateAddress(miner.miner),
           fullAddress: miner.miner,
           percentage: miner.percentage,
           color: colors[processed.length] || othersColor,

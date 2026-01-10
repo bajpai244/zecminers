@@ -64,7 +64,7 @@ services:
       context: ./web-app
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=${VITE_API_URL:-http://localhost:3000}
+        - VITE_API_URL=${VITE_API_URL}
     container_name: zcash-frontend
     ports:
       - '5173:80'

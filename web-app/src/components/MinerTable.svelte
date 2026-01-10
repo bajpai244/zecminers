@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { MinerStats } from '../lib/types';
+  import { getMinerName } from '../lib/known-miners';
 
   interface Props {
     miners: MinerStats[];
@@ -75,14 +76,21 @@
               {index + 1}
             </td>
             <td class="px-4 py-3">
-              <button
-                type="button"
-                class="font-mono text-sm text-gray-900 hover:text-blue-600 transition-colors cursor-pointer"
-                title="Click to copy: {miner.miner}"
-                onclick={() => copyToClipboard(miner.miner)}
-              >
-                {truncateAddress(miner.miner)}
-              </button>
+              <div class="flex items-center gap-2">
+                {#if getMinerName(miner.miner)}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                    {getMinerName(miner.miner)}
+                  </span>
+                {/if}
+                <button
+                  type="button"
+                  class="font-mono text-sm text-gray-500 hover:text-blue-600 transition-colors cursor-pointer"
+                  title="Click to copy: {miner.miner}"
+                  onclick={() => copyToClipboard(miner.miner)}
+                >
+                  {truncateAddress(miner.miner)}
+                </button>
+              </div>
             </td>
             <td class="px-4 py-3 text-sm text-gray-900 text-right font-medium">
               {formatNumber(miner.blocks_mined)}
