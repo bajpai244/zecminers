@@ -26,6 +26,19 @@ export type ClickHouseEnvVars = EnvVars & {
   CLICKHOUSE_PASSWORD: string;
 };
 
+export type SyncEnvVars = {
+  ZCASH_RPC_URL: string;
+  CLICKHOUSE_HOST: string;
+  CLICKHOUSE_PORT: string;
+  CLICKHOUSE_DATABASE: string;
+  CLICKHOUSE_USER: string;
+  CLICKHOUSE_PASSWORD: string;
+  SYNC_POLL_INTERVAL_MS: number;
+  SYNC_CONFIRMATION_BLOCKS: number;
+  SYNC_BATCH_SIZE: number;
+  SYNC_REORG_CHECK_DEPTH: number;
+};
+
 /**
  * Validates that all required environment variables are present
  * @throws {Error} If any required environment variable is missing
@@ -88,12 +101,51 @@ export function validateAndGetClickHouseEnvVars(): ClickHouseEnvVars {
  * @param envVars - The ClickHouse environment variables
  * @returns ClickHouseConfig object ready for client initialization
  */
-export function getClickHouseConfig(envVars: ClickHouseEnvVars): ClickHouseConfig {
+export function getClickHouseConfig(envVars: ClickHouseEnvVars | SyncEnvVars): ClickHouseConfig {
   return {
     host: envVars.CLICKHOUSE_HOST,
-    port: parseInt(envVars.CLICKHOUSE_PORT, 10),
+    port:
+      typeof envVars.CLICKHOUSE_PORT === 'string'
+        ? parseInt(envVars.CLICKHOUSE_PORT, 10)
+        : envVars.CLICKHOUSE_PORT,
     database: envVars.CLICKHOUSE_DATABASE,
     username: envVars.CLICKHOUSE_USER,
     password: envVars.CLICKHOUSE_PASSWORD,
+  };
+}
+
+/**
+ * Validates that ZCASH_RPC_URL is present (required for sync service)
+ * @throws {Error} If ZCASH_RPC_URL is missing
+ */
+function validateSyncEnvVars(): void {
+  if (!process.env.ZCASH_RPC_URL) {
+    throw new Error(
+      `Missing required environment variable: ZCASH_RPC_URL\n` +
+        `Please check your .env file and ensure it is set.`
+    );
+  }
+}
+
+/**
+ * Gets environment variables for the sync service
+ * Uses defaults for most values
+ * @returns SyncEnvVars object
+ * @throws {Error} If ZCASH_RPC_URL is missing
+ */
+export function getSyncEnvVars(): SyncEnvVars {
+  validateSyncEnvVars();
+
+  return {
+    ZCASH_RPC_URL: process.env.ZCASH_RPC_URL!,
+    CLICKHOUSE_HOST: process.env.CLICKHOUSE_HOST || 'localhost',
+    CLICKHOUSE_PORT: process.env.CLICKHOUSE_PORT || '8123',
+    CLICKHOUSE_DATABASE: process.env.CLICKHOUSE_DATABASE || 'zcash',
+    CLICKHOUSE_USER: process.env.CLICKHOUSE_USER || 'default',
+    CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD || 'zcash123',
+    SYNC_POLL_INTERVAL_MS: parseInt(process.env.SYNC_POLL_INTERVAL_MS || '10000', 10),
+    SYNC_CONFIRMATION_BLOCKS: parseInt(process.env.SYNC_CONFIRMATION_BLOCKS || '10', 10),
+    SYNC_BATCH_SIZE: parseInt(process.env.SYNC_BATCH_SIZE || '50', 10),
+    SYNC_REORG_CHECK_DEPTH: parseInt(process.env.SYNC_REORG_CHECK_DEPTH || '20', 10),
   };
 }

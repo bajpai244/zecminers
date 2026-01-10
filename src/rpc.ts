@@ -263,3 +263,76 @@ export async function getTxData(params: GetTxParams): Promise<GetTxDataResponse>
     throw error;
   }
 }
+
+/**
+ * Gets the current block count (chain height) from Zcash RPC endpoint
+ * @param zcashRpcUrl - The Zcash RPC endpoint URL
+ * @returns The current block height
+ * @throws {Error} If the RPC request fails
+ */
+export async function getBlockCount(zcashRpcUrl: string): Promise<number> {
+  const requestBody = {
+    jsonrpc: '1.0',
+    id: 'curltest',
+    method: 'getblockcount',
+    params: [],
+  };
+
+  try {
+    const response = await axios.post<RpcResponse<number>>(zcashRpcUrl, requestBody, {
+      headers: {
+        'content-type': 'text/plain;',
+      },
+    });
+
+    if (response.data.error || response.data.result === undefined) {
+      throw new Error(`RPC error: ${response.data.error?.message || 'Unknown error'}`);
+    }
+
+    return response.data.result;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        `Failed to get block count: ${error.message}${error.response ? ` (Status: ${error.response.status})` : ''}`
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * Gets the block hash at a specific height from Zcash RPC endpoint
+ * @param height - The block height
+ * @param zcashRpcUrl - The Zcash RPC endpoint URL
+ * @returns The block hash at the given height
+ * @throws {Error} If the RPC request fails
+ */
+export async function getBlockHash(height: number, zcashRpcUrl: string): Promise<string> {
+  const requestBody = {
+    jsonrpc: '1.0',
+    id: 'curltest',
+    method: 'getblockhash',
+    params: [height],
+  };
+
+  try {
+    const response = await axios.post<RpcResponse<string>>(zcashRpcUrl, requestBody, {
+      headers: {
+        'content-type': 'text/plain;',
+      },
+    });
+
+    if (response.data.error || response.data.result === undefined) {
+      throw new Error(`RPC error: ${response.data.error?.message || 'Unknown error'}`);
+    }
+
+    return response.data.result;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        `Failed to get block hash: ${error.message}${error.response ? ` (Status: ${error.response.status})` : ''}`
+      );
+    }
+    throw error;
+  }
+}

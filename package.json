@@ -7,6 +7,9 @@
     "fmt": "prettier --write \"**/*.ts\"",
     "analyze": "bun src/analyze.ts",
     "ingest:clickhouse": "bun run src/clickhouse-ingest.ts",
+    "sync": "bun run src/sync.ts",
+    "sync:quick": "bun run src/sync-quick.ts",
+    "server": "bun run src/server.ts",
     "db:clear": "bun run src/db/clear-tables.ts",
     "db:miner-stats": "bun run src/db/miner-stats.ts"
   },
@@ -19,6 +22,7 @@
   },
   "dependencies": {
     "@clickhouse/client": "^1.16.0",
-    "axios": "^1.13.2"
+    "axios": "^1.13.2",
+    "hono": "^4.11.3"
   }
 }

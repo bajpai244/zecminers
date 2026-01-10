@@ -1,10 +1,11 @@
 import { createClient, type ClickHouseClient } from '@clickhouse/client';
 import type { ClickHouseConfig, ClickHouseBlockData } from './clickhouse-types';
 
-const TABLE_NAME = 'zcash_blocks';
+const DEFAULT_TABLE_NAME = 'zcash_blocks';
 
-const CREATE_TABLE_QUERY = `
-CREATE TABLE IF NOT EXISTS ${TABLE_NAME} (
+function getCreateTableQuery(tableName: string): string {
+  return `
+CREATE TABLE IF NOT EXISTS ${tableName} (
   block_number UInt64,
   block_hash String,
   timestamp DateTime,
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS ${TABLE_NAME} (
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY block_number
 `;
+}
 
 /**
  * ClickHouse client wrapper for Zcash block data storage
@@ -27,9 +29,11 @@ ORDER BY block_number
 export class ClickHouseDB {
   private client: ClickHouseClient;
   private database: string;
+  private tableName: string;
 
-  constructor(config: ClickHouseConfig) {
+  constructor(config: ClickHouseConfig, tableName: string = DEFAULT_TABLE_NAME) {
     this.database = config.database;
+    this.tableName = tableName;
     this.client = createClient({
       url: `http://${config.host}:${config.port}`,
       username: config.username,
@@ -49,10 +53,10 @@ export class ClickHouseDB {
 
     // Create table
     await this.client.command({
-      query: CREATE_TABLE_QUERY,
+      query: getCreateTableQuery(this.tableName),
     });
 
-    console.log(`ClickHouse: Database '${this.database}' and table '${TABLE_NAME}' ready`);
+    console.log(`ClickHouse: Database '${this.database}' and table '${this.tableName}' ready`);
   }
 
   /**
@@ -76,7 +80,7 @@ export class ClickHouseDB {
     }));
 
     await this.client.insert({
-      table: TABLE_NAME,
+      table: this.tableName,
       values,
       format: 'JSONEachRow',
     });
@@ -87,7 +91,7 @@ export class ClickHouseDB {
    */
   async getBlockCount(): Promise<number> {
     const result = await this.client.query({
-      query: `SELECT count() as count FROM ${TABLE_NAME} FINAL`,
+      query: `SELECT count() as count FROM ${this.tableName} FINAL`,
       format: 'JSONEachRow',
     });
 
@@ -101,13 +105,88 @@ export class ClickHouseDB {
    */
   async blockExists(blockNumber: number): Promise<boolean> {
     const result = await this.client.query({
-      query: `SELECT 1 FROM ${TABLE_NAME} FINAL WHERE block_number = {blockNumber:UInt64} LIMIT 1`,
+      query: `SELECT 1 FROM ${this.tableName} FINAL WHERE block_number = {blockNumber:UInt64} LIMIT 1`,
       query_params: { blockNumber },
       format: 'JSONEachRow',
     });
 
     const rows = await result.json();
     return rows.length > 0;
+  }
+
+  /**
+   * Get the latest (highest) block number in the database
+   * @returns The highest block number or null if database is empty
+   */
+  async getLatestBlockNumber(): Promise<number | null> {
+    const result = await this.client.query({
+      query: `SELECT max(block_number) as max_block FROM ${this.tableName} FINAL`,
+      format: 'JSONEachRow',
+    });
+
+    const rows = await result.json<{ max_block: number }[]>();
+    const maxBlock = rows[0]?.max_block;
+    return maxBlock === 0 ? null : maxBlock;
+  }
+
+  /**
+   * Get the block hash at a specific height
+   * @param blockNumber - The block number to look up
+   * @returns The block hash or null if not found
+   */
+  async getBlockHashAtHeight(blockNumber: number): Promise<string | null> {
+    const result = await this.client.query({
+      query: `SELECT block_hash FROM ${this.tableName} FINAL WHERE block_number = {blockNumber:UInt64} LIMIT 1`,
+      query_params: { blockNumber },
+      format: 'JSONEachRow',
+    });
+
+    const rows = await result.json<{ block_hash: string }[]>();
+    return rows[0]?.block_hash || null;
+  }
+
+  /**
+   * Get recent blocks for reorg checking
+   * @param count - Number of recent blocks to retrieve
+   * @returns Array of block numbers and hashes
+   */
+  async getRecentBlocks(count: number): Promise<{ block_number: number; block_hash: string }[]> {
+    const result = await this.client.query({
+      query: `
+        SELECT block_number, block_hash
+        FROM ${this.tableName} FINAL
+        ORDER BY block_number DESC
+        LIMIT {count:UInt32}
+      `,
+      query_params: { count },
+      format: 'JSONEachRow',
+    });
+
+    return result.json<{ block_number: number; block_hash: string }[]>();
+  }
+
+  /**
+   * Delete blocks from a certain height onwards (for reorg recovery)
+   * @param fromHeight - Delete all blocks with block_number >= this value
+   * @returns Number of blocks deleted
+   */
+  async deleteBlocksFrom(fromHeight: number): Promise<number> {
+    // First count how many we'll delete
+    const countResult = await this.client.query({
+      query: `SELECT count() as count FROM ${this.tableName} FINAL WHERE block_number >= {fromHeight:UInt64}`,
+      query_params: { fromHeight },
+      format: 'JSONEachRow',
+    });
+    const countRows = await countResult.json<{ count: number }[]>();
+    const deleteCount = countRows[0]?.count || 0;
+
+    // Delete the blocks using ALTER TABLE DELETE
+    await this.client.command({
+      query: `ALTER TABLE ${this.tableName} DELETE WHERE block_number >= {fromHeight:UInt64}`,
+      query_params: { fromHeight },
+    });
+
+    return deleteCount;
   }
 
   /**
