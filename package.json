@@ -4,7 +4,11 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "fmt": "prettier --write \"**/*.ts\""
+    "fmt": "prettier --write \"**/*.ts\"",
+    "analyze": "bun src/analyze.ts",
+    "ingest:clickhouse": "bun run src/clickhouse-ingest.ts",
+    "db:clear": "bun run src/db/clear-tables.ts",
+    "db:miner-stats": "bun run src/db/miner-stats.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -14,6 +18,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@clickhouse/client": "^1.16.0",
     "axios": "^1.13.2"
   }
 }

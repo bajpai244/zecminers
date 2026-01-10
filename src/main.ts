@@ -1,37 +1,29 @@
 import { validateAndGetEnvVars } from './env';
-import { getBlockData, getTxData, isCoinbaseTransaction } from './rpc';
-
-import { writeFileSync } from 'node:fs';
+import { extractMinerDataForRange, saveMinerDataToJSON } from './miner-extractor';
 
 const main = async () => {
   // Validate and get environment variables
   const { ZCASH_RPC_URL, START_BLOCK_NUMBER, END_BLOCK_NUMBER } = validateAndGetEnvVars();
 
-  const result = await getBlockData({
-    blockNumber: START_BLOCK_NUMBER,
-    zcashRpcUrl: ZCASH_RPC_URL,
-  });
+  console.log(`Extracting miner data from blocks ${START_BLOCK_NUMBER} to ${END_BLOCK_NUMBER}...`);
 
-  const results = result.result?.tx.map(async (tx) => {
-    console.log('printing info for: ', tx);
-
-    const result = await getTxData({
-      txHash: tx,
-      zcashRpcUrl: ZCASH_RPC_URL,
-    });
-
-    writeFileSync(`saving-${Math.random()}.json`, JSON.stringify(result));
-
-    console.log('results: ', result);
-
-    if (result.result) {
-      console.log('isCoinbaseTransaction:', isCoinbaseTransaction(result.result));
+  // Extract miner data for the range
+  const minerData = await extractMinerDataForRange(
+    parseInt(START_BLOCK_NUMBER),
+    parseInt(END_BLOCK_NUMBER),
+    ZCASH_RPC_URL,
+    {
+      batchSize: 500, // Process 1000 blocks at a time
+      progressCallback: (current, total) => {
+        console.log(`Progress: ${current}/${total} blocks processed`);
+      },
     }
-  });
+  );
 
-  if (results) {
-    await Promise.all(results);
-  }
+  // Save to JSON file
+  saveMinerDataToJSON(minerData, 'miner-data.json');
+
+  console.log(`Successfully extracted miner data for ${minerData.totalBlocks} blocks`);
 };
 
 main();
