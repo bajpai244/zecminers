@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { MinerStats } from '../lib/types';
-  import { getMinerName } from '../lib/known-miners';
+  import { aggregateMiners, type AggregatedMiner } from '../lib/known-miners';
 
   interface Props {
     miners: MinerStats[];
@@ -8,6 +8,8 @@
   }
 
   let { miners, loading = false }: Props = $props();
+
+  let aggregatedMiners = $derived(aggregateMiners(miners));
 
   function truncateAddress(address: string): string {
     if (address.length <= 16) return address;
@@ -35,7 +37,7 @@
           #
         </th>
         <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-4 py-3">
-          Miner Address
+          Miner
         </th>
         <th class="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-4 py-3">
           Blocks
@@ -63,33 +65,35 @@
             </td>
           </tr>
         {/each}
-      {:else if miners.length === 0}
+      {:else if aggregatedMiners.length === 0}
         <tr>
           <td colspan="4" class="px-4 py-8 text-center text-gray-500">
             No miners found for this period
           </td>
         </tr>
       {:else}
-        {#each miners as miner, index}
+        {#each aggregatedMiners as miner, index}
           <tr class="hover:bg-gray-50 transition-colors">
             <td class="px-4 py-3 text-sm text-gray-500 font-medium">
               {index + 1}
             </td>
             <td class="px-4 py-3">
-              <div class="flex items-center gap-2">
-                {#if getMinerName(miner.miner)}
+              <div class="flex items-center gap-2 flex-wrap">
+                {#if miner.name}
                   <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                    {getMinerName(miner.miner)}
+                    {miner.name}
                   </span>
                 {/if}
-                <button
-                  type="button"
-                  class="font-mono text-sm text-gray-500 hover:text-blue-600 transition-colors cursor-pointer"
-                  title="Click to copy: {miner.miner}"
-                  onclick={() => copyToClipboard(miner.miner)}
-                >
-                  {truncateAddress(miner.miner)}
-                </button>
+                {#each miner.addresses as address, i}
+                  <button
+                    type="button"
+                    class="font-mono text-sm text-gray-500 hover:text-blue-600 transition-colors cursor-pointer"
+                    title="Click to copy: {address}"
+                    onclick={() => copyToClipboard(address)}
+                  >
+                    {truncateAddress(address)}{i < miner.addresses.length - 1 ? ',' : ''}
+                  </button>
+                {/each}
               </div>
             </td>
             <td class="px-4 py-3 text-sm text-gray-900 text-right font-medium">

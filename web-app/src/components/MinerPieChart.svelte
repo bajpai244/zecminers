@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { MinerStats } from '../lib/types';
-  import { getMinerName } from '../lib/known-miners';
+  import { aggregateMiners, type AggregatedMiner } from '../lib/known-miners';
 
   interface Props {
     miners: MinerStats[];
@@ -25,18 +25,25 @@
 
   const othersColor = '#9CA3AF'; // gray
 
-  // Process miners: group small ones into "Others"
-  function processMiners(miners: MinerStats[]): { label: string; percentage: number; color: string; fullAddress?: string }[] {
+  interface ChartData {
+    label: string;
+    percentage: number;
+    color: string;
+    addresses: string[];
+  }
+
+  // Process miners: aggregate by pool, group small ones into "Others"
+  function processMiners(miners: MinerStats[]): ChartData[] {
+    const aggregated = aggregateMiners(miners);
     const threshold = 2; // Group miners with < 2% into "Others"
-    const processed: { label: string; percentage: number; color: string; fullAddress?: string }[] = [];
+    const processed: ChartData[] = [];
     let othersPercentage = 0;
 
-    miners.forEach((miner, index) => {
+    aggregated.forEach((miner) => {
       if (miner.percentage >= threshold && processed.length < colors.length) {
-        const poolName = getMinerName(miner.miner);
         processed.push({
-          label: poolName || truncateAddress(miner.miner),
-          fullAddress: miner.miner,
+          label: miner.name || truncateAddress(miner.addresses[0]),
+          addresses: miner.addresses,
           percentage: miner.percentage,
           color: colors[processed.length] || othersColor,
         });
@@ -50,6 +57,7 @@
         label: 'Others',
         percentage: Math.round(othersPercentage * 100) / 100,
         color: othersColor,
+        addresses: [],
       });
     }
 
@@ -62,7 +70,7 @@
   }
 
   // Calculate pie chart segments
-  function calculateSegments(data: { percentage: number; color: string }[]): { path: string; color: string }[] {
+  function calculateSegments(data: ChartData[]): { path: string; color: string }[] {
     const segments: { path: string; color: string }[] = [];
     let currentAngle = -90; // Start from top
 
@@ -146,8 +154,9 @@
               style="background-color: {item.color}"
             ></div>
             <span
-              class="text-sm text-gray-700 font-mono truncate flex-1"
-              title={item.fullAddress || item.label}
+              class="text-sm text-gray-700 truncate flex-1"
+              class:font-mono={!item.addresses.length || !item.label.includes('Miner')}
+              title={item.addresses.join(', ') || item.label}
             >
               {item.label}
             </span>
