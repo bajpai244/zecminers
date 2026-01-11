@@ -20,12 +20,8 @@
     return num.toLocaleString('en-US');
   }
 
-  async function copyToClipboard(text: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
+  function getExplorerUrl(address: string): string {
+    return `https://mainnet.zcashexplorer.app/address/${address}`;
   }
 </script>
 
@@ -85,14 +81,15 @@
                   </span>
                 {/if}
                 {#each miner.addresses as address, i}
-                  <button
-                    type="button"
+                  <a
+                    href={getExplorerUrl(address)}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     class="font-mono text-sm text-gray-500 hover:text-blue-600 transition-colors cursor-pointer"
-                    title="Click to copy: {address}"
-                    onclick={() => copyToClipboard(address)}
+                    title="View on explorer: {address}"
                   >
                     {truncateAddress(address)}{i < miner.addresses.length - 1 ? ',' : ''}
-                  </button>
+                  </a>
                 {/each}
               </div>
             </td>
